@@ -3,7 +3,7 @@
 # a NIfTI (.nii) file to DICOM (.dcm) files
 
 # Author: Matthieu Ruthven (matthieuruthven@nhs.net)
-# Last modified: 4th June 2024
+# Last modified: 6th June 2024
 
 # Import required packages
 import argparse
@@ -26,13 +26,13 @@ def list_files_in_dir(dir_path):
     # Return list
     return file_list
 
-def main(seg_path, nii_dir_path, dcm_dir_path):
+def main(seg_path, nii_img_path, dcm_dir_path, save_dir_path):
 
-    # Create list of files in folder containing .dcm files
+    # Create list of DICOM files in "dcm_dir_path"
     dcm_list = list_files_in_dir(dcm_dir_path)
 
-    # Check there are 272 "dcm" files in "dcm_dir_path"
-    assert len(dcm_list) == 272, f'There should be 272 "dcm" files in {dcm_dir_path}.'
+    # Check there are 272 DICOM files in "dcm_dir_path"
+    assert len(dcm_list) == 272, f'There should be 272 DICOM files in {dcm_dir_path}.'
 
     # Specify index
     idx = 100
@@ -50,98 +50,78 @@ def main(seg_path, nii_dir_path, dcm_dir_path):
     assert min(seg_val_list) == 0, 'One segmentation class should have a value of 0.'
     assert max(seg_val_list) == 2, 'One segmentation class should have a value of 2.'
 
-    # Plot GT segmentation slice (i.e. 2D image)
-    plt.imshow(gt_segs[idx, ...])
-    plt.axis('off')
+    # Plot slice (i.e. 2D image) of GT segmentations
+    # plt.imshow(gt_segs[idx, ...])
+    # plt.axis('off')
 
     # Load NIfTI image file
-    nii_img = nib.load(nii_dir_path / f'{str(dcm_dir_path).split('/')[-1]}_img.nii.gz')
+    nii_img = nib.load(nii_img_path)
     nii_img = nii_img.get_fdata()
 
     # Check shape of image array
     assert nii_img.shape == (272, 512, 512), 'The shape of the array of the image should be (272, 512, 512).'
 
     # Plot image slice
-    plt.imshow(nii_img[idx, ...])
-    plt.axis('off')
+    # plt.imshow(nii_img[idx, ...])
+    # plt.axis('off')
 
-    # Load corresponding "dcm" file
+    # Load DICOM file containing image
     dcm_file = pydicom.dcmread(dcm_dir_path / dcm_list[idx])
 
     # Check shape of image array
     assert dcm_file.pixel_array.shape == (512, 512), 'The shape of the array of the image should be (512, 512).'
 
-    # Plot image
-    plt.imshow(dcm_file.pixel_array)
-    plt.axis('off')
+    # Plot DICOM image
+    # plt.imshow(dcm_file.pixel_array)
+    # plt.axis('off')
 
-    # Change orientation of GT segmentations
+    # Change orientation of NIfTI image slice
     nii_slice = np.fliplr(np.rot90(nii_img[idx, ...]))
 
-    # Plot GT segmentation slice
-    plt.imshow(nii_slice)
-    plt.axis('off')
+    # Plot NIfTI image slice
+    # plt.imshow(nii_slice)
+    # plt.axis('off')
 
     # Check images are consistent
-    if len(np.unique(nii_slice - dcm_file.pixel_array.astype('float64'))) == 1:
-
-        # For each "dcm" file
-        for idx, dcm_file in enumerate(dcm_list):
-
-            # Load "dcm" file
-            dcm_file = pydicom.dcmread(dcm_dir_path / dcm_file)
-
-            # Extract corresponding slice from NIfTI image array
-            nii_img = np.fliplr(np.rot90(nii_img[idx, ...])).astype('int16')
-
-            # Check images are consistent
-            assert len(np.unique(nii_slice - dcm_file.pixel_array.astype('float64'))) == 1, f'Slice {idx + 1}: There are inconsistencies between the DICOM and NIfTI images.'
-
-            # Extract corresponding GT segmentations
-            gt_segs = np.fliplr(np.rot90(gt_segs[idx, ...])).astype('int16')
-
-            # Change pixel_array field
-            dcm_file.pixel_array = gt_segs
-
-            # Change PixelData field
-            dcm_file.PixelData = dcm_file.pixel_array.tobytes()
-
-            # Save modified "dcm" file
-            # dcm_file.save_as(new_dcm_dir_path / dcm_file)
-
-    else:
+    if len(np.unique(nii_slice - dcm_file.pixel_array.astype('float64'))) != 1:
 
         # Update idx
         idx *= -1
         idx -= 1
 
-        # Change orientation of GT segmentations
+        # Change orientation of NIfTI image slice
         nii_slice = np.fliplr(np.rot90(nii_img[idx, ...]))
 
-        # Plot 2D image of GT segmentations
-        plt.imshow(nii_slice)
-        plt.axis('off')
+        # Plot NIfTI image slice
+        # plt.imshow(nii_slice)
+        # plt.axis('off')
 
         # Check images are consistent 
-        len(np.unique(nii_slice - dcm_file.pixel_array.astype('float64'))) == 1, 'There is an inconsistency in the images.'
+        assert len(np.unique(nii_slice - dcm_file.pixel_array.astype('float64'))) == 1, 'There is an inconsistency in the images.'
 
-        # For each "dcm" file
-        for idx, dcm_file in enumerate(dcm_list.reverse()):
+        # Reverse list of DICOM image files
+        dcm_list.reverse()
 
-            # Load "dcm" file
-            dcm_file = pydicom.dcmread(dcm_dir_path / dcm_file)
+    # For each DICOM file
+    for idx, dcm_name in enumerate(dcm_list):
 
-            # Extract corresponding GT segmentations
-            gt_segs = np.fliplr(np.rot90(gt_segs[idx, ...])).astype('int16')
+        # Load DICOM file
+        dcm_file = pydicom.dcmread(dcm_dir_path / dcm_name)
 
-            # Change pixel_array field
-            dcm_file.pixel_array = gt_segs
+        # Extract corresponding slice from NIfTI image array
+        nii_slice = np.fliplr(np.rot90(nii_img[idx, ...])).astype('int16')
 
-            # Change PixelData field
-            dcm_file.PixelData = dcm_file.pixel_array.tobytes()
+        # Check images are consistent
+        assert len(np.unique(nii_slice - dcm_file.pixel_array.astype('float64'))) == 1, f'Slice {idx + 1}: There are inconsistencies between the DICOM and NIfTI images.'
 
-            # Save modified "dcm" file
-            # dcm_file.save_as(new_dcm_dir_path / dcm_file)
+        # Extract corresponding GT segmentations
+        gt_seg_slice = np.fliplr(np.rot90(gt_segs[idx, ...])).astype('int16')
+
+        # Change PixelData field
+        dcm_file.PixelData = gt_seg_slice.tobytes()
+
+        # Save modified DICOM file
+        dcm_file.save_as(save_dir_path / dcm_name)
 
     # Print update
     print('Finished converting ground-truth segmentations from a NIfTI file to DICOM files.')
@@ -155,20 +135,26 @@ if __name__ == "__main__":
     parser.add_argument(
         '--nii_seg_path', 
         help='Path to NIfTI file of ground-truth segmentations.',
-        default='/Users/andreia/Desktop/matthieu/2021_speech_data/vol_1/segmentations/3d_slicer_combined/Segmentation.nii.gz',
-        type=Path
+        type=Path,
+        required=True
         )
     parser.add_argument(
-        '--nii_img_dir_path', 
-        help='Path to folder containing NIfTI file of images.',
-        default='/Users/andreia/Desktop/matthieu/2021_speech_data/vol_1/nifti',
-        type=Path
+        '--nii_img_path', 
+        help='Path to NIfTI file of image.',
+        type=Path,
+        required=True
         )
     parser.add_argument(
         '--dcm_dir_path',
-        help='Path to folder containing DICOM image file(s) (i.e. files with relevant headers).',
-        default='/Users/andreia/Desktop/matthieu/2021_speech_data/vol_1/dicom/3D_Sag_T2_Cube_08mm_R2_12',
-        type=Path
+        help='Path to folder containing DICOM files of image (i.e. files with relevant headers).',
+        type=Path,
+        required=True
+        )
+    parser.add_argument(
+        '--save_dir_path',
+        help='Path to folder where DICOM files of ground-truth segmentations will be saved.',
+        type=Path,
+        required=True
         )
 
     # Parse arguments
@@ -176,8 +162,9 @@ if __name__ == "__main__":
 
     # Check if folders exist
     assert os.path.exists(args.nii_seg_path), 'Please specify the absolute path to the NIfTI ground-truth segmentation file using the --nii_seg_path argument to "NII_to_DCM_Python.py".'
-    assert os.path.exists(args.nii_img_dir_path), 'Please specify the absolute path to the folder containing the NIfTI image file using the --nii_img_dir_path argument to "NII_to_DCM_Python.py".'
+    assert os.path.exists(args.nii_img_path), 'Please specify the absolute path to the NIfTI image file using the --nii_img_path argument to "NII_to_DCM_Python.py".'
     assert os.path.exists(args.dcm_dir_path), 'Please specify the absolute path to the folder containing the DICOM image files (i.e. the files with the relevant headers) using the --dcm_dir_path argument to "NII_to_DCM_Python.py".'
+    assert os.path.exists(args.save_dir_path), 'Please ensure the folder into which the DICOM ground-truth segmentation files will be saved (i.e the folder with the name and absolute path specified by the --save_dir_path argument to "NII_to_DCM_Python.py") exists.'
 
     # Run main function
-    main(args.nii_seg_path, args.nii_img_dir_path, args.dcm_dir_path)
+    main(args.nii_seg_path, args.nii_img_path, args.dcm_dir_path, args.save_dir_path)
